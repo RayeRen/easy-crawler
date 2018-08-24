@@ -1,0 +1,21 @@
+# not recommend to exceed 3000, or it may damage the proxy pool.
+# If this makes your computer uncomfortable, decrease it.
+# You can refer to the `benchmark` in readme.
+max_threads: 3000
+qps: null  # requests per sec. null is unlimited
+# qps: 80  # requests per sec
+
+# The words in each seed dict should be splitted by `\n`, one word, one line.
+seed_lists:
+  en: crawlers/glosbe/seed_lists/en.txt
+
+output_dir: outputs
+
+# 1. `https://glosbe.com/$src/$tgt`
+#    For example, if you want to crawl something about '瓦瑞语', whose url is `https://glosbe.com/en/war`, then src=en, tgt=war.
+# 2. If `restart` is set, local file and all crawling history of this language pair will be removed. DEFAULT=false
+# 3. Each task uses seed_lists[src] as seed word list to warm up the crawler, which can effectively broaden the scraping scope and speed up crawling. If no dict is found, crawler still works, but slowly.
+crawl_tasks:
+  - src: en
+    tgt: fr
+    restart: true
