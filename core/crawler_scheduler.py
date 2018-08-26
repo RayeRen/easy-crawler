@@ -12,7 +12,7 @@ import requests
 
 from core.utils import start_thread
 from .config import Config
-from .proxy_pool import PROXY_POOL_REGISTRY
+from .proxy_pool import PROXY_POOL_REGISTRY, ProxyPool
 
 requests.packages.urllib3.disable_warnings()
 
@@ -145,7 +145,8 @@ class CrawlerScheduler:
                 'new_total': stats['success'] - last_scraped,
                 'speed (pages/sec)': round(stats['success'] / time_escape, 2),
                 'todo_queue_size': self.redis.llen(self.todo_key),
-                'cur_threads': self.shared_context['cur_max_threads_num']
+                'cur_threads': self.shared_context['cur_max_threads_num'],
+                'bad_proxies': self.redis.scard(ProxyPool.REDIS_BAD_PROXY)
             })
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)
 
