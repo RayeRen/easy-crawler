@@ -1,4 +1,5 @@
 import collections
+import datetime
 import json
 import os
 import time
@@ -21,8 +22,10 @@ class CrawlerScheduler:
                  proxy_pool=None, process_num=None, thread_num=None, **kwargs):
         self.q_results = Queue(100000)
         self.q_stats = Queue(100000)
+        self.q_log = Queue(100000)
+
         self.process_num = int(process_num or min(os.cpu_count(), 20))
-        self.thread_num = int(min((thread_num or 3000) // self.process_num, 1000))
+        self.thread_num = int(min((thread_num or 1000) // self.process_num, 1000))
         self.task_name = task_name
         self.restart = kwargs.get('restart', False)
         self.qps = qps
@@ -63,6 +66,7 @@ class CrawlerScheduler:
         start_thread(self.monitor)
         start_thread(self.collect_results)
         start_thread(self.collect_stats)
+        start_thread(self.write_log)
 
         for i in range(self.process_num):
             self.procs.append(Process(
@@ -73,6 +77,7 @@ class CrawlerScheduler:
                     start_urls if i == 0 else [],
                     self.q_results,
                     self.q_stats,
+                    self.q_log,
                     i,
                     self.crawler_cls,
                     self.thread_num,
@@ -93,11 +98,11 @@ class CrawlerScheduler:
 
     @staticmethod
     def run_single_process(task_name, proxy_pool, start_urls,
-                           q_results, q_stats,
+                           q_results, q_stats, q_log,
                            rank, crawler_cls, thread_num,
                            restart, shared_context, args):
         crawler = crawler_cls(task_name, proxy_pool, start_urls,
-                              q_results, q_stats,
+                              q_results, q_stats, q_log,
                               rank, thread_num,
                               restart, shared_context, args)
         crawler.run()
@@ -185,6 +190,15 @@ class CrawlerScheduler:
         else:
             self.shared_context['cur_max_threads_num'] = max(self.shared_context['cur_max_threads_num'] * 0.9, 10)
             self.log("Decrease crawling speed.")
+
+    def write_log(self):
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/{}_{}.log".format(
+                self.task_name, datetime.datetime.now().strftime('%Y%m%d_%H_%M_%S')),
+                'w', encoding='utf-8') as f:
+            while True:
+                log = self.q_log.get()
+                f.write(log + "\n")
 
     def log(self, msg, level='INFO', should_print=True):
         s = "| {} <Scheduler>: {}".format(level, msg)

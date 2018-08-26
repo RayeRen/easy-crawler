@@ -24,7 +24,7 @@ class Crawler:
     """
 
     def __init__(self, task_name, proxy_pool, start_urls,
-                 q_results, q_stats,
+                 q_results, q_stats, q_log,
                  rank, thread_num, restart,
                  shared_context, args=None):
         self.rank = rank
@@ -58,11 +58,13 @@ class Crawler:
             line.strip() for line in open('resources/agents_list.txt', encoding='utf-8').readlines() if
             line.strip() != ""
         ]
+        self.s = requests.Session()
         self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, args)
         self.proxy_pool.collect_proxies()
 
-        # stats
+        # stats and logs
         self.q_stats = q_stats
+        self.q_log = q_log
 
     @property
     def base_url(self):
@@ -198,7 +200,7 @@ class Crawler:
                 headers = {'User-Agent': random.choice(self.user_agents)}
                 res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, timeout=10, verify=False,
+                    proxies=proxies, timeout=5, verify=False,
                     headers=headers
                 )
                 if res.status_code == 200:
@@ -206,12 +208,15 @@ class Crawler:
                     break
                 else:
                     self.proxy_pool.feedback_proxy(proxy, level=1)
+                    self.q_log.put('Status_code Error: url={}, code={}'.format(url_and_retry[0], res.status_code))
                     res = None
                     retry -= 1
             except ProxyError:
                 self.proxy_pool.feedback_proxy(proxy, level=2)
+                self.q_log.put('Proxy Error: url={}'.format(url_and_retry[0]))
                 retry -= 1
-            except (requests.exceptions.ConnectionError, ReadTimeout, ConnectTimeout, SSLError, OpenSSL.SSL.Error):
+            except (requests.exceptions.ConnectionError, ReadTimeout, ConnectTimeout, SSLError, OpenSSL.SSL.Error) as e:
+                self.q_log.put('Connection Error: url={} error={}'.format(url_and_retry[0], e.__class__.__name__))
                 self.proxy_pool.feedback_proxy(proxy, level=1)
                 retry -= 1
 

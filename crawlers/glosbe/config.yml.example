@@ -1,7 +1,7 @@
-# not recommend to exceed 3000, or it may damage the proxy pool.
+# not recommend to exceed 1000, or it may damage the proxy pool.
 # If this makes your computer uncomfortable, decrease it.
 # You can refer to the `benchmark` in readme.
-max_threads: 3000
+max_threads: 1000
 qps: null  # requests per sec. null is unlimited
 # qps: 80  # requests per sec
 

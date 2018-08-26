@@ -24,7 +24,7 @@ class MixedProxyPool(ProxyPool):
 
         new_proxies += requests.get(
             "http://%s:%s/get_all/" % (
-            self.proxy_pool_host, self.ports['jhao104'])).json()  # https://github.com/jhao104/proxy_pool
+                self.proxy_pool_host, self.ports['jhao104'])).json()  # https://github.com/jhao104/proxy_pool
 
         new_proxies += [p['ip'] + ':' + str(p['port']) for p in
                         requests.get("http://%s:%s/api/v1/proxies" % (self.proxy_pool_host, self.ports['scylla']))

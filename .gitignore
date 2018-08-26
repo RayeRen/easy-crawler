@@ -109,3 +109,6 @@ outputs*
 
 # local config
 config.yml
+
+# logs
+/logs
