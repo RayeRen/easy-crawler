@@ -33,15 +33,16 @@ class ProxyPool:
         self.proxy_retry = Counter()
         self.proxies = Queue(100000)
         self.bad_proxies = self.redis.smembers(self.REDIS_BAD_PROXY)
-        self.first = True
+        self.repeat = args.get('repeat', 1)
 
     def collect_proxies(self):
         raise NotImplementedError
 
     def shuffle_proxies(self):
-        random.shuffle(self.proxies_list)
-        for p in self.proxies_list:
-            self.proxies.put(p)
+        for _ in range(self.repeat):
+            random.shuffle(self.proxies_list)
+            for p in self.proxies_list:
+                self.proxies.put(p)
 
     def feedback_proxy(self, proxy, level=0):
         if level == 0:

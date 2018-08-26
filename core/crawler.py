@@ -11,9 +11,7 @@ from requests.exceptions import ProxyError, ConnectTimeout, SSLError, ReadTimeou
 
 from .config import Config
 from .crawler_scheduler import CrawlerScheduler
-from .proxy_pool import PROXY_POOL_REGISTRY
 from .utils import start_thread
-import proxy_pools
 
 requests.packages.urllib3.disable_warnings()
 
@@ -23,8 +21,8 @@ class Crawler:
     Abstract Crawler
     """
 
-    def __init__(self, task_name, proxy_pool, start_urls,
-                 q_results, q_stats, q_log,
+    def __init__(self, task_name, start_urls,
+                 q_results, q_stats, q_log, q_proxy, q_proxy_feedback,
                  rank, thread_num, restart,
                  shared_context, args=None):
         self.rank = rank
@@ -59,9 +57,8 @@ class Crawler:
             line.strip() != ""
         ]
         self.s = requests.Session()
-        self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, args)
-        self.proxy_pool.collect_proxies()
-        self.proxy_pool.shuffle_proxies()
+        self.q_proxy = q_proxy
+        self.q_proxy_feedback = q_proxy_feedback
 
         # stats and logs
         self.q_stats = q_stats
@@ -140,7 +137,6 @@ class Crawler:
 
         if self.is_master():
             todo_urls = list(self.redis.smembers(self.doing_key))
-            self.log("Collect %d proxies." % self.proxy_pool.proxies.qsize())
             self.log("%s task starts." % self.task_name)
             self.log("%d jobs in todo list. Rollback now." % (len(todo_urls)))
             self.log("%d jobs were completed already." % (self.redis.scard(self.done_key)))
@@ -192,7 +188,7 @@ class Crawler:
         res = None
         retry = 10
         while retry > 0:
-            proxy = self.proxy_pool.get_proxy()
+            proxy = self.q_proxy.get()
             if proxy is not None:
                 proxies = {'https': proxy, 'http': proxy}
             else:
@@ -205,21 +201,21 @@ class Crawler:
                     headers=headers
                 )
                 if res.status_code == 200:
-                    self.proxy_pool.feedback_proxy(proxy, level=0)
+                    self.q_proxy_feedback.put((proxy, 0))
                     break
                 else:
-                    self.proxy_pool.feedback_proxy(proxy, level=1)
+                    self.q_proxy_feedback.put((proxy, 1))
                     self.q_log.put('Status_code Error: url={}, code={}'.format(url_and_retry[0], res.status_code))
                     res = None
                     retry -= 1
             except ProxyError:
-                self.proxy_pool.feedback_proxy(proxy, level=2)
+                self.q_proxy_feedback.put((proxy, 2))
+                retry -= 1
                 self.q_log.put('Proxy Error: url={}'.format(url_and_retry[0]))
-                retry -= 1
             except (requests.exceptions.ConnectionError, ReadTimeout, ConnectTimeout, SSLError, OpenSSL.SSL.Error) as e:
-                self.q_log.put('Connection Error: url={} error={}'.format(url_and_retry[0], e.__class__.__name__))
-                self.proxy_pool.feedback_proxy(proxy, level=1)
+                self.q_proxy_feedback.put((proxy, 1))
                 retry -= 1
+                self.q_log.put('Connection Error: url={} error={}'.format(url_and_retry[0], e.__class__.__name__))
 
         with self.thread_locks[tid]:
             self.threads_status[tid] = (res, url_and_retry)
@@ -241,8 +237,8 @@ class Crawler:
                 self.q_stats.put({'success': 1})
             except KeyboardInterrupt:
                 return
-            except:
-                self.log("Error occurs when parsing the content. ({})".format(url), 'ERR')
+            except Exception as e:
+                self.log("Error occurs when parsing the content: {} ({})".format(str(e), url), 'ERR')
                 self.q_log.put('Parsing Error: url={}'.format(url))
                 self.q_stats.put({'error': 1})
 

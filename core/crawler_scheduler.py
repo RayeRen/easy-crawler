@@ -6,13 +6,13 @@ import time
 from copy import deepcopy
 from multiprocessing import Process, Queue, Manager
 from queue import Empty
-from threading import Thread
 import redis
 import requests
 
 from core.utils import start_thread
 from .config import Config
 from .proxy_pool import PROXY_POOL_REGISTRY, ProxyPool
+import proxy_pools  # donnot move
 
 requests.packages.urllib3.disable_warnings()
 
@@ -20,11 +20,16 @@ requests.packages.urllib3.disable_warnings()
 class CrawlerScheduler:
     def __init__(self, crawler_cls, task_name, qps=80,
                  proxy_pool=None, process_num=None, thread_num=None, **kwargs):
-        self.q_results = Queue(100000)
-        self.q_stats = Queue(100000)
-        self.q_log = Queue(100000)
+        MAX_QUEUE_SIZE = 100000
+        self.q_results = Queue(MAX_QUEUE_SIZE)
+        self.q_stats = Queue(MAX_QUEUE_SIZE)
+        self.q_log = Queue(MAX_QUEUE_SIZE)
+        self.q_proxy_feedback = Queue(MAX_QUEUE_SIZE)
+
+        PROXY_QUEUE_SIZE = 500
 
         self.process_num = int(process_num or min(os.cpu_count(), 20))
+        self.q_proxy = [Queue(PROXY_QUEUE_SIZE) for _ in range(self.process_num)]
         self.thread_num = int(min((thread_num or 1000) // self.process_num, 1000))
         self.task_name = task_name
         self.restart = kwargs.get('restart', False)
@@ -59,10 +64,21 @@ class CrawlerScheduler:
         self.done_key = self.task_name + "_done"
         self.RESET_FREEZE_SPEED_SEC = 30
 
+        # proxy pool
+        kwargs['repeat'] = self.process_num
+        self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, kwargs)
+
     def run(self):
         start_urls = self.crawler_cls.prepare(self.context, self.args)
         assert isinstance(start_urls, list), "Prepare method should return a list."
 
+        self.proxy_pool.collect_proxies()
+        self.proxy_pool.shuffle_proxies()
+        self.log("Collect %d proxies." % self.proxy_pool.proxies.qsize())
+
+        for p in range(self.process_num):
+            start_thread(self.collect_proxies, (self.q_proxy[p],))
+        start_thread(self.feedback_proxy)
         start_thread(self.monitor)
         start_thread(self.collect_results)
         start_thread(self.collect_stats)
@@ -73,11 +89,12 @@ class CrawlerScheduler:
                 target=CrawlerScheduler.run_single_process,
                 args=(
                     self.task_name,
-                    self.proxy_pool,
                     start_urls if i == 0 else [],
                     self.q_results,
                     self.q_stats,
                     self.q_log,
+                    self.q_proxy[i],
+                    self.q_proxy_feedback,
                     i,
                     self.crawler_cls,
                     self.thread_num,
@@ -97,15 +114,24 @@ class CrawlerScheduler:
             raise KeyboardInterrupt
 
     @staticmethod
-    def run_single_process(task_name, proxy_pool, start_urls,
-                           q_results, q_stats, q_log,
+    def run_single_process(task_name, start_urls,
+                           q_results, q_stats, q_log, q_proxy, q_proxy_feedback,
                            rank, crawler_cls, thread_num,
                            restart, shared_context, args):
-        crawler = crawler_cls(task_name, proxy_pool, start_urls,
-                              q_results, q_stats, q_log,
+        crawler = crawler_cls(task_name, start_urls,
+                              q_results, q_stats, q_log, q_proxy, q_proxy_feedback,
                               rank, thread_num,
                               restart, shared_context, args)
         crawler.run()
+
+    def collect_proxies(self, q_proxy):
+        while True:
+            q_proxy.put(self.proxy_pool.get_proxy())
+
+    def feedback_proxy(self):
+        while True:
+            proxy, level = self.q_proxy_feedback.get()
+            self.proxy_pool.feedback_proxy(proxy, level)
 
     def collect_stats(self):
         while not self.terminate:
