@@ -75,6 +75,6 @@ if __name__ == "__main__":
     GlosbeStatsCrawler.start(
         task_name="glosbe_stats",
         proxy_pool='mixed',
-        thread_num=1000,
+        thread_num=3000,
         restart=True
     )

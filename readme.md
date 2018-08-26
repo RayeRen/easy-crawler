@@ -105,6 +105,11 @@ python crawlers/YOUR_crawler.py
 - Proxy Name: `scylla`
 - Port: $SCYLLA_PORT
 
+### Chenjiandongx Proxy Pool
+> Repo: https://github.com/imWildCat/scylla
+- Proxy Name: `scylla`
+- Port: $CJDX_PORT
+
 ### Mixed Proxy Pool
 > Mix all of above pools together.
 - Proxy Name: `mixed`

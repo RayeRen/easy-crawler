@@ -116,7 +116,7 @@ if __name__ == "__main__":
             task_name=DictCrawler.make_fn(task['src'], task['tgt'])[0],
             proxy_pool="mixed",
             qps=config.get('qps', None),
-            thread_num=config.get("max_threads", 1000),
+            thread_num=config.get("max_threads", 3000),
             output_dir=config.get('output_dir', 'outputs'),
             restart=task.get('restart', False),
             src=task['src'],

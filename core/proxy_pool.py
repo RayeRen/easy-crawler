@@ -1,3 +1,4 @@
+import random
 from collections import Counter
 from queue import Queue
 
@@ -28,11 +29,19 @@ class ProxyPool:
     def __init__(self, redis_db, args=None):
         self.args = args or {}
         self.redis = redis_db
-        self.proxies = Queue(100000)
+        self.proxies_list = []
         self.proxy_retry = Counter()
+        self.proxies = Queue(100000)
+        self.bad_proxies = self.redis.smembers(self.REDIS_BAD_PROXY)
+        self.first = True
 
     def collect_proxies(self):
         raise NotImplementedError
+
+    def shuffle_proxies(self):
+        random.shuffle(self.proxies_list)
+        for p in self.proxies_list:
+            self.proxies.put(p)
 
     def feedback_proxy(self, proxy, level=0):
         if level == 0:
@@ -54,16 +63,19 @@ class ProxyPool:
         if self.proxies.empty():
             self.collect_proxies()
             self.log('No proxy available! Recollect.', 'WARN')
-        return self.proxies.get(timeout=5)
+
+        proxy = self.proxies.get(timeout=5)
+        while self.redis.sismember(self.REDIS_BAD_PROXY, proxy):
+            proxy = self.proxies.get(timeout=5)
+        return proxy
 
     def add_proxy(self, proxy):
         if not proxy.startswith("http"):
-            assert isinstance(proxy, str), "Proxy <{}> is not a str".format(p)
+            assert isinstance(proxy, str), "Proxy <{}> is not a str".format(proxy)
             proxy = "http://" + proxy
 
-        bad_proxies = self.redis.smembers(self.REDIS_BAD_PROXY)
-        if proxy not in bad_proxies:
-            self.proxies.put(proxy)
+        if proxy not in self.bad_proxies:
+            self.proxies_list.append(proxy)
 
     def log(self, msg, level='INFO'):
         print("| {} <ProxyPool>: {}".format(level, msg))
