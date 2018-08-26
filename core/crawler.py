@@ -1,3 +1,4 @@
+import random
 import threading
 import time
 from queue import Empty
@@ -21,10 +22,6 @@ class Crawler:
     """
     Abstract Crawler
     """
-
-    HEADERS = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0. 3396.99 Safari/537.36',
-    }
 
     def __init__(self, task_name, proxy_pool, start_urls,
                  q_results, q_stats,
@@ -57,8 +54,10 @@ class Crawler:
         self.q_results = q_results
 
         # requests
-        self.s = requests.Session()
-        self.s.headers.update(self.HEADERS)
+        self.user_agents = [
+            line.strip() for line in open('resources/agents_list.txt', encoding='utf-8').readlines() if
+            line.strip() != ""
+        ]
         self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, args)
         self.proxy_pool.collect_proxies()
 
@@ -196,9 +195,11 @@ class Crawler:
             else:
                 proxies = None
             try:
-                res = self.s.get(
+                headers = {'User-Agent': random.choice(self.user_agents)}
+                res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, timeout=10, verify=False
+                    proxies=proxies, timeout=10, verify=False,
+                    headers=headers
                 )
                 if res.status_code == 200:
                     self.proxy_pool.feedback_proxy(proxy, level=0)
