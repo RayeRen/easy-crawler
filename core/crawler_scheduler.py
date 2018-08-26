@@ -173,7 +173,7 @@ class CrawlerScheduler:
             # terminate when no task comes in.
             if stats['new_total'] == 0:
                 zeros += 1
-                if zeros > 10:
+                if zeros > 25:
                     for proc in self.procs:
                         proc.terminate()
                     self.shared_context['terminate'] = True

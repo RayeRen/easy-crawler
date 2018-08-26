@@ -140,7 +140,7 @@ class Crawler:
 
         if self.is_master():
             todo_urls = list(self.redis.smembers(self.doing_key))
-            self.log("Collect %d proxies." % len(self.proxy_pool.proxies_list))
+            self.log("Collect %d proxies." % self.proxy_pool.proxies.qsize())
             self.log("%s task starts." % self.task_name)
             self.log("%d jobs in todo list. Rollback now." % (len(todo_urls)))
             self.log("%d jobs were completed already." % (self.redis.scard(self.done_key)))

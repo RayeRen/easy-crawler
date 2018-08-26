@@ -47,9 +47,9 @@ class ProxyPool:
         if level == 0:
             self.proxies.put(proxy)
             self.proxy_retry[proxy] = 0
-        elif level == 1 or level == 2:
-            self.proxy_retry.update(proxy)
-            if self.proxy_retry[proxy] > 3:
+        elif level == 1:
+            self.proxy_retry.update({proxy: 1})
+            if self.proxy_retry[proxy] > 10:
                 if level == 2:
                     self.redis.sadd(self.REDIS_BAD_PROXY, proxy)
             else:
@@ -62,11 +62,12 @@ class ProxyPool:
         """
         if self.proxies.empty():
             self.collect_proxies()
+            self.shuffle_proxies()
             self.log('No proxy available! Recollect.', 'WARN')
 
-        proxy = self.proxies.get(timeout=5)
+        proxy = self.proxies.get()
         while self.redis.sismember(self.REDIS_BAD_PROXY, proxy):
-            proxy = self.proxies.get(timeout=5)
+            proxy = self.proxies.get()
         return proxy
 
     def add_proxy(self, proxy):
