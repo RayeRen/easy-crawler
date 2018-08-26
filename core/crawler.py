@@ -242,6 +242,7 @@ class Crawler:
                 return
             except:
                 self.log("Error occurs when parsing the content. ({})".format(url), 'ERR')
+                self.q_log.put('Parsing Error: url={}'.format(url))
                 self.q_stats.put({'error': 1})
 
     def add_job(self, url, retry_cnt=0):
