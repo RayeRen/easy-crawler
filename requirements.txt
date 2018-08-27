@@ -1,6 +1,6 @@
-yaml
 redis
 requests
 beautifulsoup4
 tqdm
 python-dotenv
+PyYAML
