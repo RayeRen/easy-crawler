@@ -31,9 +31,11 @@ class ProxyPool:
         self.proxy_retry = Counter()
         self.proxies = Queue(100000)
         self.bad_proxies_name = args['task_name'] + "@bad_proxy"
-        self.bad_proxies = self.redis.smembers(self.bad_proxies_name)
         self.repeat = args.get('repeat', 1)
         self.collecting = False
+        if args.get('restart', False):
+            self.redis.delete(self.bad_proxies_name)
+        self.bad_proxies = self.redis.smembers(self.bad_proxies_name)
 
     def collect_proxies(self):
         raise NotImplementedError

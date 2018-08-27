@@ -29,7 +29,7 @@ class CrawlerScheduler:
         PROXY_QUEUE_SIZE = 500
 
         self.process_num = int(process_num or min(os.cpu_count(), 40))
-        self.q_proxy = [Queue(PROXY_QUEUE_SIZE) for _ in range(self.process_num)]
+        self.q_proxy = Queue(PROXY_QUEUE_SIZE)
         self.thread_num = int(thread_num)
         self.task_name = task_name
         self.restart = kwargs.get('restart', False)
@@ -79,8 +79,7 @@ class CrawlerScheduler:
         self.proxy_pool.shuffle_proxies()
         self.log("Collect %d proxies." % self.proxy_pool.proxies.qsize())
 
-        for p in range(self.process_num):
-            start_thread(self.collect_proxies, (self.q_proxy[p],))
+        start_thread(self.collect_proxies)
         start_thread(self.feedback_proxy)
         start_thread(self.monitor)
         start_thread(self.collect_results)
@@ -96,7 +95,7 @@ class CrawlerScheduler:
                     self.q_results,
                     self.q_stats,
                     self.q_log,
-                    self.q_proxy[i],
+                    self.q_proxy,
                     self.q_proxy_feedback,
                     i,
                     self.crawler_cls,
@@ -127,9 +126,9 @@ class CrawlerScheduler:
                               restart, shared_context, args)
         crawler.run()
 
-    def collect_proxies(self, q_proxy):
+    def collect_proxies(self):
         while True:
-            q_proxy.put(self.proxy_pool.get_proxy())
+            self.q_proxy.put(self.proxy_pool.get_proxy())
 
     def feedback_proxy(self):
         while True:
