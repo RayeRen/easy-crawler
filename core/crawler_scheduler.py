@@ -213,9 +213,9 @@ class CrawlerScheduler:
             last_scraped = stats['success']
 
             # terminate when no task comes in.
-            if stats['new_total'] == 0 and self.redis.llen(self.todo_key) == 0 and self.runtime_context['working'] == 0:
+            if stats['new_total'] == 0 and self.redis.llen(self.todo_key) == 0:
                 zeros += 1
-                if zeros > 5:
+                if zeros > 20:
                     for proc in self.procs:
                         proc.terminate()
                     self.runtime_context['terminate'] = True

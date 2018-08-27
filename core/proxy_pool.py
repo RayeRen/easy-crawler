@@ -77,7 +77,6 @@ class ProxyPool:
         if not proxy.startswith("http"):
             assert isinstance(proxy, str), "Proxy <{}> is not a str".format(proxy)
             proxy = "http://" + proxy
-
         if proxy not in self.bad_proxies:
             self.proxies_list.append(proxy)
 

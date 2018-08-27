@@ -58,11 +58,11 @@ class MixedProxyPool(ProxyPool):
         except TimeoutError:
             self.log("Karmenzind timeout", "ERR")
 
-        self.log("Fetching chenjiandongx")
+        # self.log("Fetching chenjiandongx")
         # try:
-            # ps = requests.get("http://%s:%s/get/1000" % (self.proxy_pool_host, self.ports['chenjiandongx']),
-            #                   timeout=5).json()
-            # new_proxies += [list(p.values())[0] for p in ps]  # https://github.com/chenjiandongx/async-proxy-pool
+        # ps = requests.get("http://%s:%s/get/1000" % (self.proxy_pool_host, self.ports['chenjiandongx']),
+        #                   timeout=5).json()
+        # new_proxies += [list(p.values())[0] for p in ps]  # https://github.com/chenjiandongx/async-proxy-pool
         # except TimeoutError:
         #     self.log("chenjiandongx timeout", "ERR")
 

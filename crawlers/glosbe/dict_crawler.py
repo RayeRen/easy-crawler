@@ -41,7 +41,7 @@ class DictCrawler(Crawler):
         start_list = [base] + [base + str(i) for i in range(0, 10)] + [base + i for i in string.ascii_lowercase]
 
         if args['seed_list'] is not None:
-            start_list += [base + u for u in random.sample(args['seed_list'], args['seed_num'])]
+            start_list += [base + u for u in args['seed_list']]
             runtime_context['seed_num'] = max(args['seed_num'] - len(start_list), 0)
         else:
             runtime_context['seed_num'] = args['seed_num']
@@ -154,7 +154,7 @@ if __name__ == "__main__":
                 src=task['src'],
                 tgt=tgt,
                 seed_list=seed_list,
-                seed_num=5000,
+                seed_num=50000,
             )
 
 
