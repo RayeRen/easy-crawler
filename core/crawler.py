@@ -4,10 +4,13 @@ import time
 from queue import Empty
 
 import OpenSSL
+import itertools
 import redis
 import requests
+from OpenSSL.SSL import WantReadError
 from bs4 import BeautifulSoup
 from requests.exceptions import ProxyError, ConnectTimeout, SSLError, ReadTimeout
+from urllib3.exceptions import ProtocolError
 
 from .config import Config
 from .crawler_scheduler import CrawlerScheduler
@@ -69,17 +72,18 @@ class Crawler:
         raise NotImplementedError
 
     @staticmethod
-    def prepare(context, args):
+    def prepare(context, runtime_context, args):
         """
         Do something preparation and return a list of start urls.
         Running in MAIN process, before all workers starting.
         :param context: store some variable shared in `collect_results`
+        :param runtime_context: store some variable shared in runtime
         :param args: same as args passed to `start`
         :return: list of start urls
         """
         raise NotImplementedError
 
-    def parse(self, soup, url):
+    def parse(self, runtime_context, soup, url):
         """
         You should do 2 steps here:
         1. Parse the html, extract useful information and save them by calling `add_result`
@@ -87,6 +91,7 @@ class Crawler:
 
         You should NOT write any thread-UNSAFE code here, such as writing to a file. Instead, you should
         pass the result to `collect_results` by calling `add_result`.
+        :param runtime_context: runtime context shared within processes
         :param soup: html parsed by bs4
         :param url: cleaned request url
         :return:
@@ -160,40 +165,39 @@ class Crawler:
 
             # add starting urls
             for url in self.start_urls:
-                self.add_job(url)
+                self.add_job(url, front=True)
         else:
             time.sleep(3)
 
-        while True:
-            cur_max_threads_num = self.shared_context['cur_max_threads_num']
+        start_thread(self.schedule_threads)
+
+        for tid in itertools.cycle(range(self.max_thread_num)):
             if self.shared_context['terminate']:
                 return
+            result = None
+            with self.thread_locks[tid]:
+                if isinstance(self.threads_status[tid], tuple):
+                    result = self.threads_status[tid]
+                    self.threads_status[tid] = -1
+            if result is not None:
+                self.scrap_done(*result)
+                with self.shared_context['working_l']:
+                    self.shared_context['working'] -= 1
 
-            for tid in range(self.max_thread_num):
-                result = None
-                with self.thread_locks[tid]:
-                    if isinstance(self.threads_status[tid], tuple):
-                        result = self.threads_status[tid]
-                        self.threads_status[tid] = -1
-                    available = self.threads_status[tid] == -1
-
-                if available and tid < cur_max_threads_num:
-                    if result is not None:
-                        self.scrap_done(*result)
-                    self.threads_status[tid] = 0
-                    while True:
+    def schedule_threads(self):
+        while True:
+            if self.shared_context['terminate']:
+                return
+            cur_max_threads_num = self.shared_context['cur_max_threads_num']
+            for tid in range(int(cur_max_threads_num)):
+                if self.threads_status[tid] == -1:
+                    self.threads_status[tid] = 0  # busy
+                    url_and_retry = None
+                    while url_and_retry is None:
                         url_and_retry = self.pop_job()
-                        if url_and_retry is not None:
-                            start_thread(self.scrape, (tid, url_and_retry))
-                            break
-                        else:
-                            working = False
-                            for tid in range(self.max_thread_num):
-                                if self.threads_status[tid] == 0:
-                                    working = True
-                                    break
-                            if not working:
-                                return
+                    start_thread(self.scrape, (tid, url_and_retry))
+                    with self.shared_context['working_l']:
+                        self.shared_context['working'] += 1
 
     def scrape(self, tid, url_and_retry):
         res = None
@@ -223,7 +227,8 @@ class Crawler:
                 self.q_proxy_feedback.put((proxy, 2))
                 retry -= 1
                 self.q_log.put('Proxy Error: url={}'.format(url_and_retry[0]))
-            except (requests.exceptions.ConnectionError, ReadTimeout, ConnectTimeout, SSLError, OpenSSL.SSL.Error) as e:
+            except (requests.exceptions.RequestException,
+                    SSLError, OpenSSL.SSL.Error, WantReadError, ProtocolError) as e:
                 self.q_proxy_feedback.put((proxy, 1))
                 retry -= 1
                 self.q_log.put('Connection Error: url={} error={}'.format(url_and_retry[0], e.__class__.__name__))
@@ -237,14 +242,14 @@ class Crawler:
             self.redis.srem(self.doing_key, url)
             if url in self.crawled:
                 self.crawled.remove(url)
-            if url_and_retry[1] < 3:
+            if url_and_retry[1] < 10:
                 self.add_job(url, url_and_retry[1] + 1)
             self.add_stats({'error': 1})
         else:
             self.finish_job(url)
             soup = BeautifulSoup(res.text, 'html.parser')
             try:
-                self.parse(soup, url)
+                self.parse(self.shared_context, soup, url)
                 self.q_stats.put({'success': 1})
             except KeyboardInterrupt:
                 return
@@ -253,13 +258,17 @@ class Crawler:
                 self.q_log.put('Parsing Error: url={}'.format(url))
                 self.q_stats.put({'error': 1})
 
-    def add_job(self, url, retry_cnt=0):
+    def add_job(self, url, retry_cnt=0, front=False):
         url = self.clean_url(url)
         if url not in self.crawled and \
                 not self.redis.sismember(self.done_key, url) and \
                 not self.redis.sismember(self.doing_key, url):
+            # print(url)
             self.crawled.add(url)
-            self.redis.lpush(self.todo_key, (url, retry_cnt))
+            if front:
+                self.redis.rpush(self.todo_key, (url, retry_cnt))
+            else:
+                self.redis.lpush(self.todo_key, (url, retry_cnt))
             self.q_stats.put({'pushed_urls': 1})
 
     def pop_job(self):

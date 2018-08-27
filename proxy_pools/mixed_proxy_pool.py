@@ -1,4 +1,6 @@
 import os
+
+import redis
 import requests
 
 from core.proxy_pool import register_proxy_pool, ProxyPool
@@ -11,8 +13,10 @@ class MixedProxyPool(ProxyPool):
     def __init__(self, redis_db, args=None):
         super().__init__(redis_db, args)
         self.proxy_pool_host = os.environ.get('PROXY_POOL_SERVER_HOST', 'localhost')
-        self.fetcher1 = ProxyFetcher('http', strategy='greedy', redis_conn=redis_db)
-        self.fetcher2 = ProxyFetcher('https', strategy='greedy', redis_conn=redis_db)
+        rdp = redis.ConnectionPool(host=self.proxy_pool_host, db=0, max_connections=1000)
+        self.redis = redis.StrictRedis(connection_pool=rdp)
+        self.fetcher1 = ProxyFetcher('http', strategy='greedy', redis_conn=self.redis)
+        self.fetcher2 = ProxyFetcher('https', strategy='greedy', redis_conn=self.redis)
         self.ports = {
             'jhao104': os.environ.get('JHAO104_PORT', '5010'),
             'karmenzind': os.environ.get('KARMEN_PORT', '12345'),

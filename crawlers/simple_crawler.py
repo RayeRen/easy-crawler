@@ -9,7 +9,7 @@ class SimpleCrawler(Crawler):
         return 'https://www.baidu.com'
 
     @staticmethod
-    def prepare(context, args):
+    def prepare(context,runtime_context, args):
         """
         Do something preparation and return a list of start urls.
         Running in MAIN process, before all workers starting.
@@ -33,7 +33,7 @@ class SimpleCrawler(Crawler):
         context['messages'].append(result)
         print(context['messages'])
 
-    def parse(self, soup, url):
+    def parse(self, runtime_context, soup, url):
         """
         You should do 2 steps here:
         1. Parse the html, extract useful information and save them by calling `add_result`
@@ -41,6 +41,7 @@ class SimpleCrawler(Crawler):
 
         You should NOT write any thread-UNSAFE code here, such as writing to a file. Instead, you should
         pass the result to `collect_results` by calling `add_result`.
+        :param runtime_context: runtime context shared within processes
         :param soup: html parsed by bs4
         :param url: cleaned request url
         :return:

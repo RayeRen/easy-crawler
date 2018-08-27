@@ -7,7 +7,7 @@ from core.crawler import Crawler
 class MockCrawler(Crawler):
 
     @staticmethod
-    def prepare(context, args):
+    def prepare(context, runtime_context, args):
         pass
 
     @property
@@ -22,7 +22,7 @@ class MockCrawler(Crawler):
     def task_name(self):
         return "mock"
 
-    def parse(self, soup, url):
+    def parse(self, runtime_context, soup, url):
         pass
 
 

@@ -4,7 +4,7 @@ import json
 import os
 import time
 from copy import deepcopy
-from multiprocessing import Process, Queue, Manager
+from multiprocessing import Process, Queue, Manager, Lock
 from queue import Empty
 import redis
 import requests
@@ -28,9 +28,9 @@ class CrawlerScheduler:
 
         PROXY_QUEUE_SIZE = 500
 
-        self.process_num = int(process_num or min(os.cpu_count(), 8))
+        self.process_num = int(process_num or min(os.cpu_count(), 40))
         self.q_proxy = [Queue(PROXY_QUEUE_SIZE) for _ in range(self.process_num)]
-        self.thread_num = int(min((thread_num or 1000) // self.process_num, 1000))
+        self.thread_num = int(thread_num)
         self.task_name = task_name
         self.restart = kwargs.get('restart', False)
         self.qps = qps
@@ -47,13 +47,15 @@ class CrawlerScheduler:
         self.terminate = False
         self.crawler_cls = crawler_cls
         self.args = kwargs
-        self.context = {}
         self.stats = collections.defaultdict(lambda: 0)
         manager = Manager()
-        self.shared_context = manager.dict()
-        self.shared_context['cur_max_threads_num'] = self.thread_num / 2
-        self.shared_context['terminate'] = False
+        self.context = {}
 
+        self.runtime_context = manager.dict()
+        self.runtime_context['cur_max_threads_num'] = self.thread_num / 2
+        self.runtime_context['terminate'] = False
+        self.runtime_context['working'] = 0
+        self.runtime_context['working_l'] = manager.Lock()
         # redis
         rdp = redis.ConnectionPool(host=Config.REDIS_HOST,
                                    port=Config.REDIS_PORT, db=0,
@@ -69,7 +71,7 @@ class CrawlerScheduler:
         self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, kwargs)
 
     def run(self):
-        start_urls = self.crawler_cls.prepare(self.context, self.args)
+        start_urls = self.crawler_cls.prepare(self.context, self.runtime_context, self.args)
         assert isinstance(start_urls, list), "Prepare method should return a list."
 
         self.proxy_pool.collect_proxies()
@@ -99,7 +101,7 @@ class CrawlerScheduler:
                     self.crawler_cls,
                     self.thread_num,
                     self.restart,
-                    self.shared_context,
+                    self.runtime_context,
                     self.args,
                 )))
             self.procs[i].start()
@@ -110,7 +112,7 @@ class CrawlerScheduler:
             self.terminate = True
             for proc in self.procs:
                 proc.terminate()
-            self.shared_context['terminate'] = True
+            self.runtime_context['terminate'] = True
             raise KeyboardInterrupt
 
     @staticmethod
@@ -161,6 +163,7 @@ class CrawlerScheduler:
         accmu_step = 5
 
         freeze_speed_sec = 100
+
         while not self.terminate:
             time.sleep(5)
             time_escape = int(time.time() - t)
@@ -172,9 +175,10 @@ class CrawlerScheduler:
                 'new_total': stats['success'] - last_scraped,
                 'speed (pages/sec)': round(stats['success'] / time_escape, 2),
                 'todo_queue_size': self.redis.llen(self.todo_key),
-                'cur_threads': self.shared_context['cur_max_threads_num'],
+                'cur_threads': self.runtime_context['cur_max_threads_num'],
                 'bad_proxies': self.redis.scard(ProxyPool.REDIS_BAD_PROXY),
                 'proxies_queue_size': sum([q.qsize() for q in self.q_proxy]),
+                'working': self.runtime_context['working'],
             })
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)
             custom_monitor = self.crawler_cls.monitor(self.context, last_time_escape, last_custom_monitor)
@@ -182,7 +186,7 @@ class CrawlerScheduler:
             last_custom_monitor = custom_monitor
 
             if self.qps is None:
-                self.shared_context['cur_max_threads_num'] = self.thread_num
+                self.runtime_context['cur_max_threads_num'] = self.thread_num
             else:
                 freeze_speed_sec -= last_time_escape
                 if cnt < accmu_step:
@@ -203,12 +207,12 @@ class CrawlerScheduler:
             last_scraped = stats['success']
 
             # terminate when no task comes in.
-            if stats['new_total'] == 0:
+            if stats['new_total'] == 0 and self.redis.llen(self.todo_key) == 0 and self.runtime_context['working'] == 0:
                 zeros += 1
-                if zeros > 25:
+                if zeros > 5:
                     for proc in self.procs:
                         proc.terminate()
-                    self.shared_context['terminate'] = True
+                    self.runtime_context['terminate'] = True
                     self.terminate = True
             else:
                 zeros = 0
@@ -216,11 +220,11 @@ class CrawlerScheduler:
 
     def adjust_speed(self, increase=True):
         if increase:
-            self.shared_context['cur_max_threads_num'] = min(self.shared_context['cur_max_threads_num'] * 1.1,
-                                                             self.thread_num)
+            self.runtime_context['cur_max_threads_num'] = min(self.runtime_context['cur_max_threads_num'] * 1.1,
+                                                              self.thread_num)
             self.log("Increase crawling speed.")
         else:
-            self.shared_context['cur_max_threads_num'] = max(self.shared_context['cur_max_threads_num'] * 0.9, 10)
+            self.runtime_context['cur_max_threads_num'] = max(self.runtime_context['cur_max_threads_num'] * 0.9, 10)
             self.log("Decrease crawling speed.")
 
     def write_log(self):

@@ -14,7 +14,7 @@ class GlosbeStatsCrawler(Crawler):
         return 'https://glosbe.com'
 
     @staticmethod
-    def prepare(context, args):
+    def prepare(context, runtime_context, args):
         html = "".join(open('crawlers/glosbe/glosbe_en.html', encoding='utf-8').readlines())
         soup = BeautifulSoup(html, 'html.parser')
         lng_set = set()
@@ -37,7 +37,7 @@ class GlosbeStatsCrawler(Crawler):
             args['restart'] = True
         return urls
 
-    def parse(self, soup, url):
+    def parse(self, runtime_context, soup, url):
         src_lang, tgt_lang, langs = self._get_lang(url)
         try:
             stats = soup.select(".dictionaryWelcomePage p")[4].text.strip()
