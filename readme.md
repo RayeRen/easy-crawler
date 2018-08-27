@@ -81,7 +81,7 @@ set PYTHONPATH=.
 python crawlers/YOUR_crawler.py 
 ```
 
-## Build-in Proxy Pool
+## Built-in Proxy Pool
 
 1. Install the proxy pool servers according to the guidance in their REPOs. 
 2. Set the port in `.env`
