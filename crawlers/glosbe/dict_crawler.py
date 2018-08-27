@@ -39,6 +39,7 @@ class DictCrawler(Crawler):
 
         base = '/%s/%s/' % (src, tgt)
         start_list = [base] + [base + str(i) for i in range(0, 10)] + [base + i for i in string.ascii_lowercase]
+
         if args['seed_list'] is not None:
             start_list += [base + u for u in random.sample(args['seed_list'], args['seed_num'])]
             runtime_context['seed_num'] = max(args['seed_num'] - len(start_list), 0)
@@ -107,7 +108,7 @@ class DictCrawler(Crawler):
         return {
             'unique phrases': len(context['unique_phrases']),
             'real time speed (phrases/sec)':
-                round((len(context['unique_phrases']) - last_stats.get('unique_phrases', 0)) / time_escape, 2)
+                round((len(context['unique_phrases']) - last_stats.get('unique phrases', 0)) / time_escape, 2)
         }
 
     def _get_lang(self, url):
