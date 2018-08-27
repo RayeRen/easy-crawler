@@ -52,19 +52,20 @@ class MixedProxyPool(ProxyPool):
             self.log("Fetching Karmenzind")
             new_proxies += [p['ip'] + ':' + str(p['port']) for p in
                             requests.get(
-                                "http://%s:%s/api/proxy/?count=1000" % (self.proxy_pool_host, self.ports['karmenzind']),
+                                "http://%s:%s/api/proxy/?count=10000" % (
+                                self.proxy_pool_host, self.ports['karmenzind']),
                                 timeout=5)
                                 .json()['data']['detail']]  # https://github.com/Karmenzind/fp-server
         except TimeoutError:
             self.log("Karmenzind timeout", "ERR")
 
-        # self.log("Fetching chenjiandongx")
-        # try:
-        # ps = requests.get("http://%s:%s/get/1000" % (self.proxy_pool_host, self.ports['chenjiandongx']),
-        #                   timeout=5).json()
-        # new_proxies += [list(p.values())[0] for p in ps]  # https://github.com/chenjiandongx/async-proxy-pool
-        # except TimeoutError:
-        #     self.log("chenjiandongx timeout", "ERR")
+        self.log("Fetching chenjiandongx")
+        try:
+            ps = requests.get("http://%s:%s/get/5000" % (self.proxy_pool_host, self.ports['chenjiandongx']),
+                              timeout=5).json()
+            new_proxies += [list(p.values())[0] for p in ps]  # https://github.com/chenjiandongx/async-proxy-pool
+        except TimeoutError:
+            self.log("chenjiandongx timeout", "ERR")
 
         for p in new_proxies:
             self.add_proxy(p)

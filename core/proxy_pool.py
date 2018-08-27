@@ -67,7 +67,6 @@ class ProxyPool:
         if self.proxies.qsize() < 100 and not self.collecting:
             self.collecting = True
             self.log('No proxy available! Recollect.', 'WARN')
-            self.collect_proxies()
             self.shuffle_proxies()
             self.log('Get %d new proxies.' % self.proxies.qsize(), 'WARN')
             self.collecting = False

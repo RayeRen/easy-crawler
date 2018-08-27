@@ -213,9 +213,9 @@ class CrawlerScheduler:
             last_scraped = stats['success']
 
             # terminate when no task comes in.
-            if stats['new_total'] == 0 and self.redis.llen(self.todo_key) == 0:
+            if stats['new_total'] == 0 or stats['proxies_queue_size'] == 0:
                 zeros += 1
-                if zeros > 20:
+                if zeros > 50:
                     for proc in self.procs:
                         proc.terminate()
                     self.runtime_context['terminate'] = True
