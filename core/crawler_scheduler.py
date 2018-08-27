@@ -154,6 +154,7 @@ class CrawlerScheduler:
     def monitor(self):
         last_t = t = time.time()
         last_scraped = 0
+        last_custom_monitor = {}
         zeros = 0
         avg_speed = 0
         cnt = 0
@@ -175,6 +176,8 @@ class CrawlerScheduler:
                 'bad_proxies': self.redis.scard(ProxyPool.REDIS_BAD_PROXY)
             })
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)
+            custom_monitor = self.crawler_cls.monitor(self.context, last_time_escape, last_custom_monitor)
+            stats.update(custom_monitor)
 
             if self.qps is None:
                 self.shared_context['cur_max_threads_num'] = self.thread_num

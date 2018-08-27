@@ -32,6 +32,9 @@ class DictCrawler(Crawler):
             dict_fn: open(output_dir + "/" + dict_fn, 'a', encoding='utf-8'),
             phrase_fn: open(output_dir + "/" + phrase_fn, 'a', encoding='utf-8')
         }
+
+        context['unique_phrases'] = set()
+
         base = '/%s/%s/' % (src, tgt)
         start_list = [base]
         if args['seed_list'] is not None:
@@ -76,11 +79,20 @@ class DictCrawler(Crawler):
     def collect_results(context, result):
         file = context['files'][result[0]]
         file.write(result[1])
+        context['unique_phrases'].add(result[1])
 
     @staticmethod
     def make_fn(src, tgt):
         fn = "%s_%s" % (src, tgt)
         return fn, fn + ".dict", fn + ".phr"
+
+    @staticmethod
+    def monitor(context, time_escape, last_stats):
+        return {
+            'unique phrases': len(context['unique_phrases']),
+            'real time speed (phrases/sec)':
+                (len(context['unique_phrases']) - last_stats.get('unique_phrases', 0)) / time_escape
+        }
 
     def _get_lang(self, url):
         url = self.clean_url(url)

@@ -22,25 +22,30 @@ class MixedProxyPool(ProxyPool):
 
     def collect_proxies(self):
         new_proxies = []
+        self.log("Fetching haipproxy")
         new_proxies += self.fetcher1.get_proxies()
         new_proxies += self.fetcher2.get_proxies()  # https://github.com/SpiderClub/haipproxy
 
+        self.log("Fetching jhao104")
         new_proxies += requests.get(
             "http://%s:%s/get_all/" % (
                 self.proxy_pool_host, self.ports['jhao104'])).json()  # https://github.com/jhao104/proxy_pool
 
+        self.log("Fetching scylla")
         new_proxies += [p['ip'] + ':' + str(p['port']) for p in
                         requests.get("http://%s:%s/api/v1/proxies" % (self.proxy_pool_host, self.ports['scylla']))
                             .json()['proxies']]  # https://github.com/imWildCat/scylla
 
+        self.log("Fetching Karmenzind")
         new_proxies += [p['ip'] + ':' + str(p['port']) for p in
                         requests.get(
-                            "http://%s:%s/api/proxy/?count=100000" % (self.proxy_pool_host, self.ports['karmenzind']))
+                            "http://%s:%s/api/proxy/?count=2000" % (self.proxy_pool_host, self.ports['karmenzind']))
                             .json()['data']['detail']]  # https://github.com/Karmenzind/fp-server
 
+        self.log("Fetching chenjiandongx")
         new_proxies += [list(p.values())[0] for p in
                         requests.get(
-                            "http://%s:%s/get/100000" % (self.proxy_pool_host, self.ports['chenjiandongx']))
+                            "http://%s:%s/get/2000" % (self.proxy_pool_host, self.ports['chenjiandongx']))
                             .json()]  # https://github.com/chenjiandongx/async-proxy-pool
 
         for p in new_proxies:
