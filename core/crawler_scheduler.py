@@ -20,16 +20,16 @@ requests.packages.urllib3.disable_warnings()
 class CrawlerScheduler:
     def __init__(self, crawler_cls, task_name, qps=80,
                  proxy_pool=None, process_num=None, thread_num=None, **kwargs):
-        MAX_QUEUE_SIZE = 100000
+        MAX_QUEUE_SIZE = self.MAX_QUEUE_SIZE = 100000
         self.q_results = Queue(MAX_QUEUE_SIZE)
         self.q_stats = Queue(MAX_QUEUE_SIZE)
         self.q_log = Queue(MAX_QUEUE_SIZE)
         self.q_proxy_feedback = Queue(MAX_QUEUE_SIZE)
 
-        PROXY_QUEUE_SIZE = 500
+        self.PROXY_QUEUE_SIZE = 2000
 
         self.process_num = int(process_num or min(os.cpu_count(), 40))
-        self.q_proxy = Queue(PROXY_QUEUE_SIZE)
+        self.q_proxy = Queue(self.PROXY_QUEUE_SIZE)
         self.thread_num = int(thread_num)
         self.task_name = task_name
         self.restart = kwargs.get('restart', False)
@@ -127,31 +127,37 @@ class CrawlerScheduler:
         crawler.run()
 
     def collect_proxies(self):
-        while True:
-            self.q_proxy.put(self.proxy_pool.get_proxy())
+        while not self.terminate:
+            if self.q_proxy.qsize() < self.PROXY_QUEUE_SIZE - 50:
+                self.q_proxy.put(self.proxy_pool.get_proxy())
+            else:
+                time.sleep(0.5)
 
     def feedback_proxy(self):
-        while True:
-            proxy, level = self.q_proxy_feedback.get()
-            self.proxy_pool.feedback_proxy(proxy, level)
+        while not self.terminate:
+            if not self.q_proxy_feedback.empty():
+                proxy, level = self.q_proxy_feedback.get()
+                self.proxy_pool.feedback_proxy(proxy, level)
+            else:
+                time.sleep(0.5)
 
     def collect_stats(self):
         while not self.terminate:
-            try:
+            if not self.q_stats.empty():
                 new_stats = self.q_stats.get(timeout=5)
                 if new_stats is not None:
                     for k, v in new_stats.items():
                         self.stats[k] += v
-            except Empty:
-                pass
+            else:
+                time.sleep(0.5)
 
     def collect_results(self):
         while not self.terminate:
-            try:
+            if not self.q_results.empty():
                 result = self.q_results.get(timeout=5)
                 self.crawler_cls.collect_results(self.context, result)
-            except Empty:
-                pass
+            else:
+                time.sleep(0.5)
 
     def monitor(self):
         last_t = t = time.time()
@@ -177,7 +183,7 @@ class CrawlerScheduler:
                 'todo_queue_size': self.redis.llen(self.todo_key),
                 'cur_threads': self.runtime_context['cur_max_threads_num'],
                 'bad_proxies': self.redis.scard(self.proxy_pool.bad_proxies_name),
-                'proxies_queue_size': sum([q.qsize() for q in self.q_proxy]),
+                'proxies_queue_size': self.q_proxy.qsize(),
                 'working': self.runtime_context['working'],
             })
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)

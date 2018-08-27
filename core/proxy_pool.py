@@ -41,6 +41,8 @@ class ProxyPool:
         raise NotImplementedError
 
     def shuffle_proxies(self):
+        self.bad_proxies = self.redis.smembers(self.bad_proxies_name)
+        self.proxies_list = [p for p in self.proxies_list if p not in self.bad_proxies]
         for _ in range(self.repeat):
             random.shuffle(self.proxies_list)
             for p in self.proxies_list:
@@ -62,17 +64,14 @@ class ProxyPool:
         get a proxy.
         :return: proxy
         """
-        if self.proxies.empty() and not self.collecting:
+        if self.proxies.qsize() < 100 and not self.collecting:
             self.collecting = True
             self.log('No proxy available! Recollect.', 'WARN')
             self.collect_proxies()
             self.shuffle_proxies()
+            self.log('Get %d new proxies.' % self.proxies.qsize(), 'WARN')
             self.collecting = False
-
-        proxy = self.proxies.get()
-        while self.redis.sismember(self.bad_proxies_name, proxy) or self.proxy_retry[proxy] > 3:
-            proxy = self.proxies.get()
-        return proxy
+        return self.proxies.get()
 
     def add_proxy(self, proxy):
         if not proxy.startswith("http"):

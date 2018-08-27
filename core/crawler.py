@@ -141,7 +141,7 @@ class Crawler:
         url = url.rstrip('/')
         url = url.replace('//', "/")
         if len(url) == 0 or url[0] != "/":
-            url = url + "/"
+            url = "/" + url
         return url
 
     def run(self):
