@@ -17,5 +17,32 @@ output_dir: outputs
 # 3. Each task uses seed_lists[src] as seed word list to warm up the crawler, which can effectively broaden the scraping scope and speed up crawling. If no dict is found, crawler still works, but slowly.
 crawl_tasks:
   - src: en
-    tgt: fr
+    tgt:
+      - war
+      - cv
+      - ug
+      - qu
+      - as
+      - li
+      - bo
+      - tn
+      - rw
+      - am
+      - bcl
+      - crs
+      - ee
+      - hil
+      - ilo
+      - lg
+      - ln
+      - nb
+      - nso
+      - os
+      - pap
+      - srn
+      - ti
+      - to
+      - tpi
+      - tt
+      - ty
     restart: true
