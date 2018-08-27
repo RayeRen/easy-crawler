@@ -28,7 +28,7 @@ class CrawlerScheduler:
 
         PROXY_QUEUE_SIZE = 500
 
-        self.process_num = int(process_num or min(os.cpu_count(), 20))
+        self.process_num = int(process_num or min(os.cpu_count(), 8))
         self.q_proxy = [Queue(PROXY_QUEUE_SIZE) for _ in range(self.process_num)]
         self.thread_num = int(min((thread_num or 1000) // self.process_num, 1000))
         self.task_name = task_name
@@ -65,7 +65,7 @@ class CrawlerScheduler:
         self.RESET_FREEZE_SPEED_SEC = 30
 
         # proxy pool
-        kwargs['repeat'] = self.process_num
+        kwargs['repeat'] = 3
         self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, kwargs)
 
     def run(self):
@@ -160,7 +160,7 @@ class CrawlerScheduler:
         cnt = 0
         accmu_step = 5
 
-        freeze_speed_sec = self.RESET_FREEZE_SPEED_SEC
+        freeze_speed_sec = 100
         while not self.terminate:
             time.sleep(5)
             time_escape = int(time.time() - t)
@@ -173,11 +173,13 @@ class CrawlerScheduler:
                 'speed (pages/sec)': round(stats['success'] / time_escape, 2),
                 'todo_queue_size': self.redis.llen(self.todo_key),
                 'cur_threads': self.shared_context['cur_max_threads_num'],
-                'bad_proxies': self.redis.scard(ProxyPool.REDIS_BAD_PROXY)
+                'bad_proxies': self.redis.scard(ProxyPool.REDIS_BAD_PROXY),
+                'proxies_queue_size': sum([q.qsize() for q in self.q_proxy]),
             })
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)
             custom_monitor = self.crawler_cls.monitor(self.context, last_time_escape, last_custom_monitor)
             stats.update(custom_monitor)
+            last_custom_monitor = custom_monitor
 
             if self.qps is None:
                 self.shared_context['cur_max_threads_num'] = self.thread_num

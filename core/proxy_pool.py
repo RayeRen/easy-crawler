@@ -34,6 +34,7 @@ class ProxyPool:
         self.proxies = Queue(100000)
         self.bad_proxies = self.redis.smembers(self.REDIS_BAD_PROXY)
         self.repeat = args.get('repeat', 1)
+        self.collecting = False
 
     def collect_proxies(self):
         raise NotImplementedError
@@ -50,7 +51,7 @@ class ProxyPool:
             self.proxy_retry[proxy] = 0
         elif level == 1:
             self.proxy_retry.update({proxy: 1})
-            if self.proxy_retry[proxy] > 10:
+            if self.proxy_retry[proxy] > 3:
                 if level == 2:
                     self.redis.sadd(self.REDIS_BAD_PROXY, proxy)
             else:
@@ -61,13 +62,15 @@ class ProxyPool:
         get a proxy.
         :return: proxy
         """
-        if self.proxies.empty():
+        if self.proxies.empty() and not self.collecting:
+            self.collecting = True
+            self.log('No proxy available! Recollect.', 'WARN')
             self.collect_proxies()
             self.shuffle_proxies()
-            self.log('No proxy available! Recollect.', 'WARN')
+            self.collecting = False
 
         proxy = self.proxies.get()
-        while self.redis.sismember(self.REDIS_BAD_PROXY, proxy):
+        while self.redis.sismember(self.REDIS_BAD_PROXY, proxy) or self.proxy_retry[proxy] > 3:
             proxy = self.proxies.get()
         return proxy
 

@@ -91,7 +91,7 @@ class DictCrawler(Crawler):
         return {
             'unique phrases': len(context['unique_phrases']),
             'real time speed (phrases/sec)':
-                (len(context['unique_phrases']) - last_stats.get('unique_phrases', 0)) / time_escape
+                round((len(context['unique_phrases']) - last_stats.get('unique_phrases', 0)) / time_escape, 2)
         }
 
     def _get_lang(self, url):
