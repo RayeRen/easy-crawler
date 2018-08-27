@@ -67,6 +67,7 @@ class CrawlerScheduler:
         self.RESET_FREEZE_SPEED_SEC = 30
 
         # proxy pool
+        kwargs['task_name'] = task_name
         kwargs['repeat'] = 3
         self.proxy_pool = PROXY_POOL_REGISTRY[proxy_pool](self.redis, kwargs)
 
@@ -176,7 +177,7 @@ class CrawlerScheduler:
                 'speed (pages/sec)': round(stats['success'] / time_escape, 2),
                 'todo_queue_size': self.redis.llen(self.todo_key),
                 'cur_threads': self.runtime_context['cur_max_threads_num'],
-                'bad_proxies': self.redis.scard(ProxyPool.REDIS_BAD_PROXY),
+                'bad_proxies': self.redis.scard(self.proxy_pool.bad_proxies_name),
                 'proxies_queue_size': sum([q.qsize() for q in self.q_proxy]),
                 'working': self.runtime_context['working'],
             })

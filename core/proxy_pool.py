@@ -24,15 +24,14 @@ def register_proxy_pool(name):
 
 
 class ProxyPool:
-    REDIS_BAD_PROXY = "proxy_pool@bad_proxy"
-
     def __init__(self, redis_db, args=None):
         self.args = args or {}
         self.redis = redis_db
         self.proxies_list = []
         self.proxy_retry = Counter()
         self.proxies = Queue(100000)
-        self.bad_proxies = self.redis.smembers(self.REDIS_BAD_PROXY)
+        self.bad_proxies_name = args['task_name'] + "@bad_proxy"
+        self.bad_proxies = self.redis.smembers(self.bad_proxies_name)
         self.repeat = args.get('repeat', 1)
         self.collecting = False
 
@@ -52,7 +51,7 @@ class ProxyPool:
         elif level == 1:
             self.proxy_retry.update({proxy: 1})
             if self.proxy_retry[proxy] > 5:
-                self.redis.sadd(self.REDIS_BAD_PROXY, proxy)
+                self.redis.sadd(self.bad_proxies_name, proxy)
             else:
                 self.proxies.put(proxy)
 
@@ -69,7 +68,7 @@ class ProxyPool:
             self.collecting = False
 
         proxy = self.proxies.get()
-        while self.redis.sismember(self.REDIS_BAD_PROXY, proxy) or self.proxy_retry[proxy] > 3:
+        while self.redis.sismember(self.bad_proxies_name, proxy) or self.proxy_retry[proxy] > 3:
             proxy = self.proxies.get()
         return proxy
 
