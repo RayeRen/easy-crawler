@@ -213,7 +213,7 @@ class CrawlerScheduler:
             last_scraped = stats['success']
 
             # terminate when no task comes in.
-            if stats['new_total'] == 0 or stats['proxies_queue_size'] == 0 or terminate:
+            if stats['new_total'] == 0 or stats['proxies_queue_size'] == 0:
                 zeros += 1
                 if zeros > 20:
                     for proc in self.procs:
