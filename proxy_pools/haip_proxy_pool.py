@@ -11,7 +11,7 @@ class HaipProxyPool(ProxyPool):
     def __init__(self, redis_db, args=None):
         super().__init__(redis_db, args)
         self.fetcher1 = ProxyFetcher('http', strategy='greedy', redis_conn=redis_db)
-        self.fetcher2 = ProxyFetcher('http', strategy='greedy', redis_conn=redis_db)
+        self.fetcher2 = ProxyFetcher('https', strategy='greedy', redis_conn=redis_db)
 
     def collect_proxies(self):
         for p in self.fetcher1.get_proxies():

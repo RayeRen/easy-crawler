@@ -29,7 +29,7 @@ class ProxyPool:
         self.redis = redis_db
         self.proxies_list = []
         self.proxy_retry = Counter()
-        self.proxies = Queue(100000)
+        self.proxies = Queue(1000000)
         self.bad_proxies_name = args['task_name'] + "@bad_proxy"
         self.repeat = args.get('repeat', 1)
         self.collecting = False
@@ -54,7 +54,7 @@ class ProxyPool:
             self.proxy_retry[proxy] = 0
         elif level == 1:
             self.proxy_retry.update({proxy: 1})
-            if self.proxy_retry[proxy] > 5:
+            if self.proxy_retry[proxy] > 10:
                 self.redis.sadd(self.bad_proxies_name, proxy)
             else:
                 self.proxies.put(proxy)

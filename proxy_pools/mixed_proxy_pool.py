@@ -2,6 +2,7 @@ import os
 
 import redis
 import requests
+import time
 
 from core.proxy_pool import register_proxy_pool, ProxyPool
 from .haipproxy.client.py_cli import ProxyFetcher
@@ -15,8 +16,8 @@ class MixedProxyPool(ProxyPool):
         self.proxy_pool_host = os.environ.get('PROXY_POOL_SERVER_HOST', 'localhost')
         rdp = redis.ConnectionPool(host=self.proxy_pool_host, db=0, max_connections=1000)
         self.redis = redis.StrictRedis(connection_pool=rdp)
-        self.fetcher1 = ProxyFetcher('http', strategy='greedy', redis_conn=self.redis)
-        self.fetcher2 = ProxyFetcher('https', strategy='greedy', redis_conn=self.redis)
+        self.fetcher1 = ProxyFetcher('http', strategy='greedy', redis_conn=self.redis, min_pool_size=10000)
+        self.fetcher2 = ProxyFetcher('https', strategy='greedy', redis_conn=self.redis, min_pool_size=10000)
         self.ports = {
             'jhao104': os.environ.get('JHAO104_PORT', '5010'),
             'karmenzind': os.environ.get('KARMEN_PORT', '12345'),
@@ -26,6 +27,7 @@ class MixedProxyPool(ProxyPool):
 
     def collect_proxies(self):
         new_proxies = []
+        time.sleep(5)
 
         # https://github.com/SpiderClub/haipproxy
         new_proxies += self.fetcher1.get_proxies()
