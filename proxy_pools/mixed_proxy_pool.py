@@ -26,46 +26,52 @@ class MixedProxyPool(ProxyPool):
 
     def collect_proxies(self):
         new_proxies = []
-        self.log("Fetching haipproxy")
-        new_proxies += self.fetcher1.get_proxies()
-        new_proxies += self.fetcher2.get_proxies()  # https://github.com/SpiderClub/haipproxy
 
-        self.log("Fetching jhao104")
+        # https://github.com/SpiderClub/haipproxy
+        new_proxies += self.fetcher1.get_proxies()
+        new_proxies += self.fetcher2.get_proxies()
+        self.log("Fetched haipproxy, total: %d" % len(new_proxies))
+
+        # https://github.com/jhao104/proxy_pool
         try:
             new_proxies += requests.get(
                 "http://%s:%s/get_all/" % (
                     self.proxy_pool_host, self.ports['jhao104']),
-                timeout=5).json()  # https://github.com/jhao104/proxy_pool
+                timeout=5).json()
         except TimeoutError:
             self.log("jhao104 timeout", "ERR")
+        self.log("Fetched jhao104, total: %d" % len(new_proxies))
 
-        self.log("Fetching scylla")
+        # https://github.com/imWildCat/scylla
         try:
             new_proxies += [p['ip'] + ':' + str(p['port']) for p in
                             requests.get("http://%s:%s/api/v1/proxies" % (self.proxy_pool_host, self.ports['scylla']),
                                          timeout=5)
-                                .json()['proxies']]  # https://github.com/imWildCat/scylla
+                                .json()['proxies']]
         except TimeoutError:
             self.log("scylla timeout", "ERR")
+        self.log("Fetched scylla, total: %d" % len(new_proxies))
 
+        # https://github.com/Karmenzind/fp-server
         try:
-            self.log("Fetching Karmenzind")
             new_proxies += [p['ip'] + ':' + str(p['port']) for p in
                             requests.get(
                                 "http://%s:%s/api/proxy/?count=10000" % (
-                                self.proxy_pool_host, self.ports['karmenzind']),
+                                    self.proxy_pool_host, self.ports['karmenzind']),
                                 timeout=5)
-                                .json()['data']['detail']]  # https://github.com/Karmenzind/fp-server
+                                .json()['data']['detail']]
         except TimeoutError:
             self.log("Karmenzind timeout", "ERR")
+        self.log("Fetched Karmenzind, total: %d" % len(new_proxies))
 
-        self.log("Fetching chenjiandongx")
+        # https://github.com/chenjiandongx/async-proxy-pool
         try:
             ps = requests.get("http://%s:%s/get/5000" % (self.proxy_pool_host, self.ports['chenjiandongx']),
                               timeout=5).json()
-            new_proxies += [list(p.values())[0] for p in ps]  # https://github.com/chenjiandongx/async-proxy-pool
+            new_proxies += [list(p.values())[0] for p in ps]
         except TimeoutError:
             self.log("chenjiandongx timeout", "ERR")
+        self.log("Fetched chenjiandongx, total: %d" % len(new_proxies))
 
         for p in new_proxies:
             self.add_proxy(p)

@@ -154,7 +154,7 @@ if __name__ == "__main__":
                 src=task['src'],
                 tgt=tgt,
                 seed_list=seed_list,
-                seed_num=50000,
+                seed_num=10000,
             )
 
 
