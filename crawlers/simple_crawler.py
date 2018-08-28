@@ -9,7 +9,7 @@ class SimpleCrawler(Crawler):
         return 'https://www.baidu.com'
 
     @staticmethod
-    def prepare(context,runtime_context, args):
+    def prepare(context, runtime_context, args):
         """
         Do something preparation and return a list of start urls.
         Running in MAIN process, before all workers starting.

@@ -1,7 +1,7 @@
-import itertools
+import random
 import threading
 import time
-from queue import Empty
+from queue import Empty, Queue
 
 import OpenSSL
 import redis
@@ -48,7 +48,7 @@ class Crawler:
         # multiprocess and multithreads
         self.max_thread_num = int(thread_num)
         self.current_thread_num = 0
-        self.threads_status = [-1] * self.max_thread_num  # -1: available
+        self.threads_status = [(-1, None)] * self.max_thread_num  # -1: available
         self.thread_locks = [threading.Lock() for _ in range(self.max_thread_num)]
         self.crawled = set()
         self.q_results = q_results
@@ -58,13 +58,16 @@ class Crawler:
             line.strip() for line in open('resources/agents_list.txt', encoding='utf-8').readlines() if
             line.strip() != ""
         ]
-        self.s = requests.Session()
         self.q_proxy = q_proxy
         self.q_proxy_feedback = q_proxy_feedback
 
         # stats and logs
         self.q_stats = q_stats
         self.q_log = q_log
+
+        # local job
+        self.local_jobs = Queue(self.max_thread_num)
+        self.local_response = Queue(1000000)
 
     @property
     def base_url(self):
@@ -168,43 +171,37 @@ class Crawler:
         else:
             time.sleep(3)
 
-        start_thread(self.schedule_threads)
+        for tid in range(int(self.max_thread_num)):
+            start_thread(self.scrape_thread)
 
-        for tid in itertools.cycle(range(self.max_thread_num)):
-            if self.shared_context['terminate']:
-                return
-            result = None
-            with self.thread_locks[tid]:
-                if isinstance(self.threads_status[tid], tuple):
-                    result = self.threads_status[tid]
-                    self.threads_status[tid] = -1
-            if result is not None:
-                self.scrap_done(*result)
-                with self.shared_context['working_l']:
-                    self.shared_context['working'] -= 1
+        start_thread(self.schedule_job)
 
-    def schedule_threads(self):
         while True:
-            if self.shared_context['terminate']:
-                return
-            cur_max_threads_num = self.shared_context['cur_max_threads_num']
-            for tid in range(int(cur_max_threads_num)):
-                if self.threads_status[tid] == -1:
-                    self.threads_status[tid] = 0  # busy
-                    url_and_retry = None
-                    while url_and_retry is None:
-                        url_and_retry = self.pop_job()
-                    start_thread(self.scrape, (tid, url_and_retry))
-                    with self.shared_context['working_l']:
-                        self.shared_context['working'] += 1
+            self.shared_context['working'] = self.local_jobs.qsize()
+            if not self.local_response.empty():
+                self.scrap_done(*self.local_response.get())
+            else:
+                time.sleep(0.5)
 
-    def scrape(self, tid, url_and_retry):
+    def schedule_job(self):
+        while True:
+            job = self.pop_job()
+            if job is None:
+                time.sleep(3)
+                continue
+            self.local_jobs.put(job)
+
+    def scrape_thread(self):
+        while True:
+            if not self.local_jobs.empty():
+                url_and_retry = self.local_jobs.get()
+                self.scrape(url_and_retry)
+            else:
+                time.sleep(0.5)
+
+    def scrape(self, url_and_retry):
         res = None
         retry = 10
-        HEADERS = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0. 3396.99 Safari/537.36',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        }
         while retry > 0:
             proxy = self.q_proxy.get()
             if proxy is not None:
@@ -212,11 +209,10 @@ class Crawler:
             else:
                 proxies = None
             try:
-                # headers = {'User-Agent': random.choice(self.user_agents)}
-                headers = HEADERS
+                headers = {'User-Agent': random.choice(self.user_agents)}
                 res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, headers=headers
+                    proxies=proxies, headers=headers, timeout=2 + 2 ** url_and_retry[1]
                 )
                 if res.status_code == 200:
                     self.q_proxy_feedback.put((proxy, 0))
@@ -236,8 +232,7 @@ class Crawler:
                 retry -= 1
                 self.q_log.put('Connection Error: url={} error={}'.format(url_and_retry[0], e.__class__.__name__))
 
-        with self.thread_locks[tid]:
-            self.threads_status[tid] = (res, url_and_retry)
+        self.local_response.put((res, url_and_retry))
 
     def scrap_done(self, res, url_and_retry):
         url = url_and_retry[0]
@@ -245,8 +240,11 @@ class Crawler:
             self.redis.srem(self.doing_key, url)
             if url in self.crawled:
                 self.crawled.remove(url)
-            if url_and_retry[1] < 10:
+            if url_and_retry[1] < 3:
                 self.add_job(url, url_and_retry[1] + 1)
+            else:
+                self.add_stats({'discarded_jobs': 1})
+                self.q_log.put('Discard url: {}'.format(url))
             self.add_stats({'error': 1})
         else:
             self.finish_job(url)
@@ -267,7 +265,6 @@ class Crawler:
         if url not in self.crawled and \
                 not self.redis.sismember(self.done_key, url) and \
                 not self.redis.sismember(self.doing_key, url):
-            # print(url)
             self.crawled.add(url)
             if front:
                 self.redis.rpush(self.todo_key, (url, retry_cnt))

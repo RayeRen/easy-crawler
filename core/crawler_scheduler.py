@@ -55,7 +55,7 @@ class CrawlerScheduler:
         self.runtime_context['cur_max_threads_num'] = self.thread_num / 2
         self.runtime_context['terminate'] = False
         self.runtime_context['working'] = 0
-        self.runtime_context['working_l'] = manager.Lock()
+
         # redis
         rdp = redis.ConnectionPool(host=Config.REDIS_HOST,
                                    port=Config.REDIS_PORT, db=0,
@@ -163,7 +163,7 @@ class CrawlerScheduler:
         last_t = t = time.time()
         last_scraped = 0
         last_custom_monitor = {}
-        zeros = 0
+        dead = 0
         avg_speed = 0
         cnt = 0
         accmu_step = 5
@@ -186,6 +186,9 @@ class CrawlerScheduler:
                 'proxies_queue_size': self.q_proxy.qsize(),
                 'working': self.runtime_context['working'],
             })
+            if dead > 5:
+                stats.update({"dead": str(dead) + "/20"})
+
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)
             custom_monitor, terminate = self.crawler_cls.monitor(self.context, last_time_escape, last_custom_monitor)
             stats.update(custom_monitor)
@@ -214,14 +217,14 @@ class CrawlerScheduler:
 
             # terminate when no task comes in.
             if (stats['new_total'] == 0 and self.redis.llen(self.todo_key) == 0) or stats['proxies_queue_size'] == 0:
-                zeros += 1
-                if zeros > 20:
+                dead += 1
+                if dead > 20:
                     for proc in self.procs:
                         proc.terminate()
                     self.runtime_context['terminate'] = True
                     self.terminate = True
             else:
-                zeros = 0
+                dead = 0
             print(json.dumps(stats))
 
     def adjust_speed(self, increase=True):
