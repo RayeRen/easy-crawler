@@ -216,8 +216,7 @@ class Crawler:
                 headers = HEADERS
                 res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, timeout=10,
-                    headers=headers
+                    proxies=proxies, headers=headers
                 )
                 if res.status_code == 200:
                     self.q_proxy_feedback.put((proxy, 0))
@@ -255,6 +254,7 @@ class Crawler:
             try:
                 self.parse(self.shared_context, soup, url)
                 self.q_stats.put({'success': 1})
+                self.q_log.put("success: {}".format(url))
             except KeyboardInterrupt:
                 return
             except Exception as e:

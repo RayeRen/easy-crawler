@@ -29,10 +29,10 @@ class GlosbeStatsCrawler(Crawler):
                 if lng1 != lng2:
                     urls.append("/%s/%s" % (lng1, lng2))
 
-        if os.path.exists('outputs/stats.csv'):
+        if os.path.exists('outputs/stats.csv') and not args.get('restart', False):
             context['file'] = open('outputs/stats.csv', 'a', encoding='utf-8')
         else:
-            context['file'] = open('outputs/stats.csv', 'a', encoding='utf-8')
+            context['file'] = open('outputs/stats.csv', 'w', encoding='utf-8')
             context['file'].write("src,tgt,#dict,#phrase\n")
             args['restart'] = True
         return urls
@@ -75,6 +75,6 @@ if __name__ == "__main__":
     GlosbeStatsCrawler.start(
         task_name="glosbe_stats",
         proxy_pool='mixed',
-        thread_num=3000,
+        thread_num=100,
         restart=True
     )

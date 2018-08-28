@@ -28,7 +28,7 @@ class CrawlerScheduler:
 
         self.PROXY_QUEUE_SIZE = 2000
 
-        self.process_num = int(process_num or min(os.cpu_count(), 40))
+        self.process_num = int(process_num or min(os.cpu_count(), 20))
         self.q_proxy = Queue(self.PROXY_QUEUE_SIZE)
         self.thread_num = int(thread_num)
         self.task_name = task_name
@@ -215,7 +215,7 @@ class CrawlerScheduler:
             # terminate when no task comes in.
             if stats['new_total'] == 0 or stats['proxies_queue_size'] == 0 or terminate:
                 zeros += 1
-                if zeros > 50:
+                if zeros > 20:
                     for proc in self.procs:
                         proc.terminate()
                     self.runtime_context['terminate'] = True
