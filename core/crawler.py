@@ -1,15 +1,14 @@
-import random
+import itertools
 import threading
 import time
 from queue import Empty
 
 import OpenSSL
-import itertools
 import redis
 import requests
 from OpenSSL.SSL import WantReadError
 from bs4 import BeautifulSoup
-from requests.exceptions import ProxyError, ConnectTimeout, SSLError, ReadTimeout
+from requests.exceptions import ProxyError, SSLError
 from urllib3.exceptions import ProtocolError
 
 from .config import Config
@@ -217,7 +216,7 @@ class Crawler:
                 headers = HEADERS
                 res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, timeout=5,
+                    proxies=proxies, timeout=10,
                     headers=headers
                 )
                 if res.status_code == 200:

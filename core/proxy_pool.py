@@ -53,6 +53,8 @@ class ProxyPool:
             self.proxies.put(proxy)
             self.proxy_retry[proxy] = 0
         elif level == 1:
+            self.proxies.put(proxy)
+        else:
             self.proxy_retry.update({proxy: 1})
             if self.proxy_retry[proxy] > 10:
                 self.redis.sadd(self.bad_proxies_name, proxy)
