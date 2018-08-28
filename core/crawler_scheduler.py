@@ -187,7 +187,7 @@ class CrawlerScheduler:
                 'working': self.runtime_context['working'],
             })
             real_speed = stats['real time speed (pages/sec)'] = round(stats['new_total'] / last_time_escape, 2)
-            custom_monitor = self.crawler_cls.monitor(self.context, last_time_escape, last_custom_monitor)
+            custom_monitor, terminate = self.crawler_cls.monitor(self.context, last_time_escape, last_custom_monitor)
             stats.update(custom_monitor)
             last_custom_monitor = custom_monitor
 
@@ -213,7 +213,7 @@ class CrawlerScheduler:
             last_scraped = stats['success']
 
             # terminate when no task comes in.
-            if stats['new_total'] == 0 or stats['proxies_queue_size'] == 0:
+            if stats['new_total'] == 0 or stats['proxies_queue_size'] == 0 or terminate:
                 zeros += 1
                 if zeros > 50:
                     for proc in self.procs:

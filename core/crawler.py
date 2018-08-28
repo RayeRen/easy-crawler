@@ -115,9 +115,9 @@ class Crawler:
         :param context: some variables saved in `collect_results`
         :param time_escape: time escaped since last monitor
         :param last_stats: last stats return by the monitor
-        :param stats: <dict>
+        :param stats: <dict>, terminate: bool
         """
-        return {}
+        return {}, False
 
     @classmethod
     def start(cls, task_name, proxy_pool, thread_num, qps=None, restart=False, **kwargs):
