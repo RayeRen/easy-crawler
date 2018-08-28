@@ -202,6 +202,10 @@ class Crawler:
     def scrape(self, tid, url_and_retry):
         res = None
         retry = 10
+        HEADERS = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0. 3396.99 Safari/537.36',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        }
         while retry > 0:
             proxy = self.q_proxy.get()
             if proxy is not None:
@@ -209,10 +213,11 @@ class Crawler:
             else:
                 proxies = None
             try:
-                headers = {'User-Agent': random.choice(self.user_agents)}
+                # headers = {'User-Agent': random.choice(self.user_agents)}
+                headers = HEADERS
                 res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, timeout=5, verify=False,
+                    proxies=proxies, timeout=5,
                     headers=headers
                 )
                 if res.status_code == 200:
