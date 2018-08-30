@@ -45,4 +45,4 @@ crawl_tasks:
       - tpi
       - tt
       - ty
-    restart: true
+    restart: false
