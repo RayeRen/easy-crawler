@@ -117,9 +117,12 @@ class Crawler:
         :param context: some variables saved in `collect_results`
         :param time_escape: time escaped since last monitor
         :param last_stats: last stats return by the monitor
-        :param stats: <dict>, terminate: bool
+        :param dict stats: terminate: bool
         """
         return {}, False
+
+    def handle_error(self, res):
+        return 1
 
     @classmethod
     def start(cls, task_name, proxy_pool, thread_num, qps=None, restart=False, **kwargs):
@@ -220,8 +223,8 @@ class Crawler:
                 else:
                     self.q_proxy_feedback.put((proxy, 1))
                     self.q_log.put('Status_code Error: url={}, code={}'.format(url_and_retry[0], res.status_code))
+                    retry -= self.handle_error(res)
                     res = None
-                    retry -= 1
             except ProxyError:
                 self.q_proxy_feedback.put((proxy, 2))
                 retry -= 1

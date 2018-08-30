@@ -1,9 +1,11 @@
+import datetime
 import json
 import os
 import random
 import re
 import string
 
+import time
 import yaml
 from core.crawler import Crawler
 
@@ -25,8 +27,10 @@ class DictCrawler(Crawler):
         fn, dict_fn, phrase_fn = DictCrawler.make_fn(src, tgt)
         if args.get('restart', False):
             try:
-                os.remove(output_dir + '/' + phrase_fn)
-                os.remove(output_dir + '/' + dict_fn)
+                os.rename(output_dir + '/' + phrase_fn,
+                          output_dir + '/' + phrase_fn + str(datetime.datetime.now().timestamp()) + ".bak")
+                os.rename(output_dir + '/' + dict_fn,
+                          output_dir + '/' + dict_fn + str(datetime.datetime.now().timestamp()) + ".bak")
             except:
                 pass
         os.makedirs(output_dir, exist_ok=True)
@@ -127,6 +131,14 @@ class DictCrawler(Crawler):
         url = super(DictCrawler, self).clean_url(url)
         url = url.replace('&tmmode=MUST', "")
         return url
+
+    def handle_error(self, res):
+        if res.status_code not in [500, 502]:
+            return 1
+        else:
+            self.log("{} got in {}. Sleep 60s.".format(res.status_code, res.url), "WARN")
+            time.sleep(60)
+            return 0
 
 
 if __name__ == "__main__":

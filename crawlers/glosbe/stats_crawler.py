@@ -39,13 +39,10 @@ class GlosbeStatsCrawler(Crawler):
 
     def parse(self, runtime_context, soup, url):
         src_lang, tgt_lang, langs = self._get_lang(url)
-        try:
-            stats = soup.select(".dictionaryWelcomePage p")[4].text.strip()
-            stats = re.findall("[\d,]+", stats)
-            self.add_result(
-                "%s,%s,%s,%s\n" % (src_lang, tgt_lang, stats[0].replace(",", ""), stats[1].replace(",", "")))
-        except:
-            print(soup.select(".dictionaryWelcomePage p"), url, soup)
+        stats = soup.select(".dictionaryWelcomePage p")[4].text.strip()
+        stats = re.findall("[\d,]+", stats)
+        self.add_result(
+            "%s,%s,%s,%s\n" % (src_lang, tgt_lang, stats[0].replace(",", ""), stats[1].replace(",", "")))
 
     @staticmethod
     def collect_results(context, result):
