@@ -215,7 +215,7 @@ class Crawler:
                 headers = {'User-Agent': random.choice(self.user_agents)}
                 res = requests.get(
                     self.base_url + url_and_retry[0],
-                    proxies=proxies, headers=headers, timeout=2 + 2 ** url_and_retry[1]
+                    proxies=proxies, headers=headers, timeout=5 + 2 ** url_and_retry[1]
                 )
                 if res.status_code == 200:
                     self.q_proxy_feedback.put((proxy, 0))
